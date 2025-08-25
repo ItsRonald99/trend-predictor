@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# Data (don’t version raw/intermediate)
+data/raw/
+data/interim/
+
+# OS
+.DS_Store
