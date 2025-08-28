@@ -1,4 +1,4 @@
-# Trend Predictor (Day 1)
+# Trend Predictor
 Jupyter-based pipeline to ingest daily-adjusted OHLCV data from Alpha Vantage.
 - Notebooks in `notebooks/`
 - Raw JSON in `data/raw/` (gitignored)
