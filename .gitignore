@@ -15,3 +15,6 @@ data/interim/
 
 # OS
 .DS_Store
+
+# Dev environment
+source/
