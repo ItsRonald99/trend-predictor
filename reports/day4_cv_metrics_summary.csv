@@ -1,0 +1,10 @@
+symbol,algo,ACC,AUC,F1,MAE,R2,RMSE
+QQQ,hgb_reg,,,,0.0108,-0.3555,0.0154
+QQQ,logit_cls,0.5191,0.5008,0.5779,,,
+QQQ,ridge_reg,,,,0.0094,-0.0041,0.0134
+VFV.TO,hgb_reg,,,,0.0079,-0.2421,0.0113
+VFV.TO,logit_cls,0.496,0.5064,0.5039,,,
+VFV.TO,ridge_reg,,,,0.0071,-0.0385,0.0104
+XEQT.TO,hgb_reg,,,,0.007,-0.4194,0.0095
+XEQT.TO,logit_cls,0.4797,0.5,0.464,,,
+XEQT.TO,ridge_reg,,,,0.0063,-0.1092,0.0084
