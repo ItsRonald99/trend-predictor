@@ -17,15 +17,15 @@ def load_dataset(symbol: str) -> pd.DataFrame:
 
 def make_X_y(df: pd.DataFrame, task: str):
     feats = df.drop(columns=["date","y_reg","y_cls"]).copy()
-    # replace inf with NaN
     feats = feats.replace([np.inf, -np.inf], np.nan)
-    # choose target
     target = df["y_reg"].copy() if task == "reg" else df["y_cls"].copy()
-    # drop any row with NaN in features or non-finite target
+
     good = feats.notna().all(axis=1) & np.isfinite(target)
     X = feats.loc[good].values.astype(float)
     y = target.loc[good].values
-    return X, y, feats.columns.tolist()
+    feat_names = feats.columns.tolist()
+    # return a boolean mask aligned to df.index
+    return X, y, feat_names, good.values
 
 def ts_splits(n_samples: int, n_splits=5):
     return list(TimeSeriesSplit(n_splits=n_splits).split(np.arange(n_samples)))
@@ -33,7 +33,7 @@ def ts_splits(n_samples: int, n_splits=5):
 def train_baselines(symbol: str, n_splits=5):
     df = load_dataset(symbol)
     # Regression: Ridge + HGB
-    Xr, yr, feat_names = make_X_y(df, "reg")
+    Xr, yr, feat_names, good_r = make_X_y(df, "reg")
     folds = ts_splits(len(Xr), n_splits)
 
     ridge = Pipeline([
@@ -76,7 +76,7 @@ def train_baselines(symbol: str, n_splits=5):
         joblib.dump({"model": model, "features": feat_names}, MODELS / f"{symbol}_{name}.pkl")
         
     # Classification: Logistic
-    Xc, yc, feat_names = make_X_y(df, "cls")
+    Xc, yc, feat_names_c, good_c = make_X_y(df, "cls")
     logit = Pipeline([
     ("imputer", SimpleImputer(strategy="median")),
     ("scaler", StandardScaler()),
@@ -111,18 +111,39 @@ def perf_metrics(logrets: pd.Series) -> dict:
     return dict(CAGR=cagr, Vol=vol, Sharpe=sharpe, MaxDD=maxdd)
 
 def wf_predict(df: pd.DataFrame, pipe: Pipeline, task: str, n_splits=5) -> np.ndarray:
-    X, y, _ = make_X_y(df, task)
-    preds = np.full(len(X), np.nan)
-    for tr, te in ts_splits(len(X), n_splits):
-        m = clone(pipe); m.fit(X[tr], y[tr]); preds[te] = (m.predict_proba(X[te])[:,1] if task=="cls" else m.predict(X[te]))
-    return preds
+    # get filtered matrix + mask
+    X, y, _, good = make_X_y(df, task)
+    n = len(X)
+    preds_compact = np.full(n, np.nan, dtype=float)
+
+    folds = ts_splits(n, n_splits)
+    for tr, te in folds:
+        m = clone(pipe)
+        m.fit(X[tr], y[tr])
+        if task == "cls":
+            preds_compact[te] = m.predict_proba(X[te])[:, 1]
+        else:
+            preds_compact[te] = m.predict(X[te])
+
+    # expand back to full length, align to df.index
+    preds_full = np.full(len(df), np.nan, dtype=float)
+    preds_full[good] = preds_compact
+    return preds_full
 
 def run_strategy(df: pd.DataFrame, signal: np.ndarray, kind: str, thr: float, cost_bps=0.0005) -> pd.DataFrame:
     out = pd.DataFrame({"date": df["date"], "y_reg": df["y_reg"]})
-    pos = (signal > thr).astype(int)
-    trades = pd.Series(pos).diff().abs().fillna(0.0).values
+
+    sig = pd.Series(signal, index=df.index, dtype=float)
+    # stay in cash (0) where signal is NaN
+    pos = (sig > thr).astype(float)
+    pos = pos.fillna(0.0)
+
+    trades = pos.diff().abs().fillna(0.0)
     costs = cost_bps * trades
-    out["r_strategy"] = pos*out["y_reg"] - costs
+
+    out["pos"] = pos.values
+    out["costs"] = costs.values
+    out["r_strategy"] = out["pos"] * out["y_reg"] - out["costs"]
     out["r_bh"] = out["y_reg"]
     out["eq_strat"] = equity_from_logrets(out["r_strategy"].values)
     out["eq_bh"] = equity_from_logrets(out["r_bh"].values)
