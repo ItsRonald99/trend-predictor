@@ -63,6 +63,7 @@ pip install -r requirements.lock.txt
 
 ### 2. Install package (editable mode)
 pip install -e .
+
 This installs the CLI command tp.
 
 ---
