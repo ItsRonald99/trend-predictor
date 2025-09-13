@@ -87,6 +87,8 @@ This installs the CLI command tp.
 ---
 
 ## ⚡ Usage
+
+### !!! NOT FUNCTIONING AT THE MOMENT; RUN JUPYTER NOTEBOOKS INSTEAD IN /notebooks
 Build features
 
 tp features --symbols QQQ VFV.TO XEQT.TO
