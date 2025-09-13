@@ -35,19 +35,33 @@ This project is a **full-stack data engineering + ML pipeline** for exploring wh
 
 ## 📂 Repo Structure
 trend-predictor/
+
 ├── data/ # raw, interim, processed datasets (Parquet)
+
 ├── models/ # saved model artifacts (.pkl)
+
 ├── notebooks/ # day-by-day development (Day1 → Day10)
+
 ├── reports/ # backtest logs, plots, metrics
+
 ├── src/
+
 │ └── trend_predictor/ # CLI + reusable modules
+
 │ ├── cli.py
+
 │ ├── features.py
+
 │ ├── modeling.py
+
 │ └── io_paths.py
+
 ├── pyproject.toml # package metadata (tp CLI entrypoint)
+
 ├── requirements.lock.txt
+
 ├── Makefile
+
 └── README.md
 
 ---
@@ -74,31 +88,39 @@ This installs the CLI command tp.
 
 ## ⚡ Usage
 Build features
+
 tp features --symbols QQQ VFV.TO XEQT.TO
 
 Train models
+
 tp train --symbols QQQ VFV.TO XEQT.TO
 
 Backtest
+
 tp backtest --symbols QQQ --kind ridge_reg
+
 tp backtest --symbols QQQ --kind logit_cls --tuned
 
 Threshold calibration
+
 tp thresholds --symbols QQQ --kind logit_cls --cal-frac 0.8
+
 Reports are saved in reports/.
 
 ---
 
 ## 📊 Example Output
 Cross-validation (Day 4):
-Model	MAE	RMSE	R²
-Ridge	0.009	0.012	-0.02
-HGB	0.008	0.011	0.01
+| Model | MAE   | RMSE  | R²    |
+| ----- | ----- | ----- | ----- |
+| Ridge | 0.009 | 0.012 | -0.02 |
+| HGB   | 0.008 | 0.011 | 0.01  |
 
 Backtest performance (Day 6/8):
-Strategy	CAGR	Vol	Sharpe	MaxDD
-Buy & Hold	8.2%	15.0%	0.55	-0.35
-Logistic ML	6.1%	13.0%	0.47	-0.28
+| Strategy    | CAGR | Vol   | Sharpe | MaxDD |
+| ----------- | ---- | ----- | ------ | ----- |
+| Buy & Hold  | 8.2% | 15.0% | 0.55   | -0.35 |
+| Logistic ML | 6.1% | 13.0% | 0.47   | -0.28 |
 
 ---
 
