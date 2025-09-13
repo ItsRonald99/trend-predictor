@@ -1,0 +1,22 @@
+[project]
+name = "trend-predictor"
+version = "0.1.0"
+description = "Stock & ETF Trend Predictor — CLI runner"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pandas",
+  "numpy",
+  "scikit-learn",
+  "pyarrow",
+  "fastparquet",
+  "matplotlib",
+  "python-dotenv"
+]
+
+[project.scripts]
+tp = "trend_predictor.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
