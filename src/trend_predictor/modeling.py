@@ -7,6 +7,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score, f1_score, roc_auc_score
 from sklearn.base import clone
 from .io_paths import DATA_PROCESSED, MODELS, REPORTS
+from sklearn.impute import SimpleImputer
 
 TRADING_DAYS = 252
 
@@ -15,9 +16,15 @@ def load_dataset(symbol: str) -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 def make_X_y(df: pd.DataFrame, task: str):
-    feats = df.drop(columns=["date","y_reg","y_cls"])
-    X = feats.values.astype(float)
-    y = df["y_reg"].values if task=="reg" else df["y_cls"].values
+    feats = df.drop(columns=["date","y_reg","y_cls"]).copy()
+    # replace inf with NaN
+    feats = feats.replace([np.inf, -np.inf], np.nan)
+    # choose target
+    target = df["y_reg"].copy() if task == "reg" else df["y_cls"].copy()
+    # drop any row with NaN in features or non-finite target
+    good = feats.notna().all(axis=1) & np.isfinite(target)
+    X = feats.loc[good].values.astype(float)
+    y = target.loc[good].values
     return X, y, feats.columns.tolist()
 
 def ts_splits(n_samples: int, n_splits=5):
@@ -29,25 +36,52 @@ def train_baselines(symbol: str, n_splits=5):
     Xr, yr, feat_names = make_X_y(df, "reg")
     folds = ts_splits(len(Xr), n_splits)
 
-    ridge = Pipeline([("scaler", StandardScaler()), ("ridge", Ridge())])
-    hgb   = HistGradientBoostingRegressor()
+    ridge = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler()),
+    ("ridge", Ridge())
+    ])
+
+    hgb = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),  # HGB can handle NaNs, but keep consistent
+    ("hgb", HistGradientBoostingRegressor())
+    ])
+    
     # CV (ridge)
     rows = []
     for name, model in [("ridge_reg", ridge), ("hgb_reg", hgb)]:
         yh_all = np.full(len(yr), np.nan)
         for tr, te in folds:
-            model.fit(Xr[tr], yr[tr]); yh = model.predict(Xr[te]); yh_all[te] = yh
-        mae = mean_absolute_error(yr[~np.isnan(yh_all)], yh_all[~np.isnan(yh_all)])
-        rmse = mean_squared_error(yr[~np.isnan(yh_all)], yh_all[~np.isnan(yh_all)], squared=False) if hasattr(mean_squared_error, "__call__") else np.sqrt(mean_squared_error(yr, yh_all))
-        r2 = r2_score(yr[~np.isnan(yh_all)], yh_all[~np.isnan(yh_all)])
+            model.fit(Xr[tr], yr[tr])
+            yh = model.predict(Xr[te])
+            yh_all[te] = yh
+    
+        # ---- NaN-safe slice of CV preds/targets
+        mask = ~np.isnan(yh_all)
+        y_true = yr[mask]
+        y_pred = yh_all[mask]
+    
+        if len(y_true) == 0:
+            mae = rmse = r2 = np.nan
+        else:
+            mae = mean_absolute_error(y_true, y_pred)
+            mse = mean_squared_error(y_true, y_pred)  # returns MSE on all versions
+            rmse = float(np.sqrt(mse))                # compute RMSE manually
+            r2 = r2_score(y_true, y_pred)
+    
         rows.append(dict(model=name, MAE=mae, RMSE=rmse, R2=r2))
-        # fit on all & save
+    
+        # fit on ALL data and save the final model bundle
         model.fit(Xr, yr)
         joblib.dump({"model": model, "features": feat_names}, MODELS / f"{symbol}_{name}.pkl")
-
+        
     # Classification: Logistic
     Xc, yc, feat_names = make_X_y(df, "cls")
-    logit = Pipeline([("scaler", StandardScaler()), ("logit", LogisticRegression(max_iter=200, class_weight="balanced"))])
+    logit = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler()),
+    ("logit", LogisticRegression(max_iter=200, class_weight="balanced"))
+    ])
     proba_all = np.full(len(yc), np.nan)
     for tr, te in folds:
         logit.fit(Xc[tr], yc[tr]); proba_all[te] = logit.predict_proba(Xc[te])[:,1]
