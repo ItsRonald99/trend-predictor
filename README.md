@@ -56,9 +56,13 @@ trend-predictor/
 
 ### 1. Clone + create environment
 git clone git@github.com:yourusername/trend-predictor.git
+
 cd trend-predictor
+
 python3 -m venv .venv
+
 source .venv/bin/activate
+
 pip install -r requirements.lock.txt
 
 ### 2. Install package (editable mode)
