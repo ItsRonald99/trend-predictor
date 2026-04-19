@@ -1,10 +1,10 @@
 import numpy as np, pandas as pd, joblib
-from sklearn.model_selection import TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Ridge, LogisticRegression
 from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score, f1_score, roc_auc_score, make_scorer
 from sklearn.base import clone
 from .io_paths import DATA_PROCESSED, MODELS, REPORTS
 from sklearn.impute import SimpleImputer
@@ -129,6 +129,72 @@ def wf_predict(df: pd.DataFrame, pipe: Pipeline, task: str, n_splits=5) -> np.nd
     preds_full = np.full(len(df), np.nan, dtype=float)
     preds_full[good] = preds_compact
     return preds_full
+
+_RIDGE_GRID = {"ridge__alpha": [0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0]}
+_HGB_GRID   = {
+    "hgb__learning_rate":    [0.03, 0.05, 0.08, 0.1],
+    "hgb__max_depth":        [3, 5, None],
+    "hgb__max_leaf_nodes":   [15, 31, 63],
+    "hgb__min_samples_leaf": [10, 20, 50],
+}
+_LOGIT_GRID = {
+    "logit__C":        [0.1, 0.5, 1.0, 2.0, 5.0],
+    "logit__penalty":  ["l2"],
+    "logit__solver":   ["lbfgs"],
+    "logit__max_iter": [200],
+}
+
+def _rmse_score(y_true, y_pred):
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+def tune_baselines(symbol: str, n_splits: int = 5):
+    df = load_dataset(symbol)
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    rmse_scorer = make_scorer(_rmse_score, greater_is_better=False)
+
+    # --- Ridge ---
+    Xr, yr, feat_names_r, _ = make_X_y(df, "reg")
+    ridge_pipe = Pipeline([("scaler", StandardScaler()), ("ridge", Ridge())])
+    gs_ridge = GridSearchCV(
+        ridge_pipe, _RIDGE_GRID,
+        scoring={"rmse": rmse_scorer, "mae": make_scorer(mean_absolute_error, greater_is_better=False), "r2": make_scorer(r2_score)},
+        refit="rmse", cv=tscv, n_jobs=2, return_train_score=False,
+    )
+    gs_ridge.fit(Xr, yr)
+    joblib.dump({"model": gs_ridge.best_estimator_, "features": feat_names_r, "best_params": gs_ridge.best_params_},
+                MODELS / f"{symbol}_ridge_reg_tuned.pkl")
+    pd.DataFrame(gs_ridge.cv_results_).to_csv(REPORTS / f"day7_{symbol}_ridge_grid.csv", index=False)
+
+    # --- HGB ---
+    hgb_pipe = Pipeline([("hgb", HistGradientBoostingRegressor(random_state=42))])
+    gs_hgb = GridSearchCV(
+        hgb_pipe, _HGB_GRID,
+        scoring={"rmse": rmse_scorer, "mae": make_scorer(mean_absolute_error, greater_is_better=False), "r2": make_scorer(r2_score)},
+        refit="rmse", cv=tscv, n_jobs=2, return_train_score=False,
+    )
+    gs_hgb.fit(Xr, yr)
+    joblib.dump({"model": gs_hgb.best_estimator_, "features": feat_names_r, "best_params": gs_hgb.best_params_},
+                MODELS / f"{symbol}_hgb_reg_tuned.pkl")
+    pd.DataFrame(gs_hgb.cv_results_).to_csv(REPORTS / f"day7_{symbol}_hgb_grid.csv", index=False)
+
+    # --- Logit ---
+    Xc, yc, feat_names_c, _ = make_X_y(df, "cls")
+    logit_pipe = Pipeline([("scaler", StandardScaler()), ("logit", LogisticRegression())])
+    gs_logit = GridSearchCV(
+        logit_pipe, _LOGIT_GRID,
+        scoring={"auc": "roc_auc", "f1": "f1", "acc": "accuracy"},
+        refit="auc", cv=TimeSeriesSplit(n_splits=n_splits), n_jobs=2, return_train_score=False,
+    )
+    gs_logit.fit(Xc, yc)
+    joblib.dump({"model": gs_logit.best_estimator_, "features": feat_names_c, "best_params": gs_logit.best_params_},
+                MODELS / f"{symbol}_logit_cls_tuned.pkl")
+    pd.DataFrame(gs_logit.cv_results_).to_csv(REPORTS / f"day7_{symbol}_logit_grid.csv", index=False)
+
+    return {
+        "ridge_best_params": gs_ridge.best_params_,
+        "hgb_best_params":   gs_hgb.best_params_,
+        "logit_best_params": gs_logit.best_params_,
+    }
 
 def run_strategy(df: pd.DataFrame, signal: np.ndarray, kind: str, thr: float, cost_bps=0.0005) -> pd.DataFrame:
     out = pd.DataFrame({"date": df["date"], "y_reg": df["y_reg"]})

@@ -1,4 +1,4 @@
-.PHONY: features train backtest thresholds
+.PHONY: features train tune backtest thresholds
 
 SYMS=QQQ VFV.TO XEQT.TO
 
@@ -9,6 +9,10 @@ features:
 train:
 	@echo "🤖 Training baselines..."
 	tp train --symbols $(SYMS)
+
+tune:
+	@echo "🔬 Tuning hyperparameters..."
+	tp tune --symbols $(SYMS)
 
 backtest:
 	@echo "📈 Running backtests..."

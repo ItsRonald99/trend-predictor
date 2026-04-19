@@ -2,7 +2,7 @@ import argparse, sys, numpy as np, pandas as pd, joblib
 from pathlib import Path
 from .io_paths import DATA_PROCESSED, MODELS, REPORTS
 from .features import save_symbol_dataset
-from .modeling import load_dataset, train_baselines, wf_predict, run_strategy, perf_metrics
+from .modeling import load_dataset, train_baselines, tune_baselines, wf_predict, run_strategy, perf_metrics
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Ridge, LogisticRegression
@@ -27,6 +27,15 @@ def cmd_train(args):
     for sym in args.symbols:
         train_baselines(sym)
         print(f"[train] Saved baselines for {sym} under models/ and CV metrics under reports/")
+
+def cmd_tune(args):
+    for sym in args.symbols:
+        print(f"[tune] Tuning {sym} (this may take a few minutes)...")
+        params = tune_baselines(sym, n_splits=args.splits)
+        print(f"[tune] {sym} ridge best: {params['ridge_best_params']}")
+        print(f"[tune] {sym} hgb   best: {params['hgb_best_params']}")
+        print(f"[tune] {sym} logit best: {params['logit_best_params']}")
+        print(f"[tune] Saved tuned models for {sym} under models/")
 
 def cmd_backtest(args):
     for sym in args.symbols:
@@ -84,6 +93,11 @@ def main():
     s2 = sub.add_parser("train", help="Train baseline models and save them")
     s2.add_argument("--symbols", nargs="+", required=True)
     s2.set_defaults(func=cmd_train)
+
+    s2t = sub.add_parser("tune", help="GridSearchCV-tune models and save tuned versions")
+    s2t.add_argument("--symbols", nargs="+", required=True)
+    s2t.add_argument("--splits", type=int, default=5)
+    s2t.set_defaults(func=cmd_tune)
 
     s3 = sub.add_parser("backtest", help="Walk-forward backtest for a model")
     s3.add_argument("--symbols", nargs="+", required=True)
