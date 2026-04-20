@@ -1,12 +1,20 @@
-import argparse, sys, numpy as np, pandas as pd, joblib
+import argparse, os, sys, numpy as np, pandas as pd, joblib
 from pathlib import Path
 from .io_paths import DATA_PROCESSED, MODELS, REPORTS
 from .features import save_symbol_dataset
+from .ingest import ingest_all
 from .modeling import load_dataset, train_baselines, tune_baselines, wf_predict, run_strategy, perf_metrics
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Ridge, LogisticRegression
 from sklearn.ensemble import HistGradientBoostingRegressor
+
+def cmd_ingest(args):
+    api_key = os.getenv("ALPHAVANTAGE_KEY")
+    if not api_key:
+        print("[ingest] ALPHAVANTAGE_KEY not set — will use Stooq fallback for all symbols.", file=sys.stderr)
+    ingest_all(args.symbols, api_key)
+
 
 def cmd_features(args):
     for sym in args.symbols:
@@ -85,6 +93,10 @@ def cmd_thresholds(args):
 def main():
     p = argparse.ArgumentParser(prog="tp", description="Trend Predictor CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    s0 = sub.add_parser("ingest", help="Fetch latest prices from Alpha Vantage (Stooq fallback) and save Parquet")
+    s0.add_argument("--symbols", nargs="+", required=True)
+    s0.set_defaults(func=cmd_ingest)
 
     s1 = sub.add_parser("features", help="Build feature datasets from Day 2 Parquet prices")
     s1.add_argument("--symbols", nargs="+", required=True)

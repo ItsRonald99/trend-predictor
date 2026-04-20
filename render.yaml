@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: trend-predictor
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ALPHAVANTAGE_KEY
+        sync: false

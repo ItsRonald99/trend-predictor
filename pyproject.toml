@@ -11,7 +11,10 @@ dependencies = [
   "pyarrow",
   "fastparquet",
   "matplotlib",
-  "python-dotenv"
+  "python-dotenv",
+  "requests",
+  "fastapi",
+  "uvicorn[standard]"
 ]
 
 [project.scripts]

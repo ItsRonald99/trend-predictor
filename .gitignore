@@ -21,3 +21,6 @@ source/
 
 # Build artifacts
 *.egg-info/
+
+# Claude Code
+CLAUDE.md
