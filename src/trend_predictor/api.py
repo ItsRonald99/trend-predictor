@@ -123,13 +123,15 @@ def predict(
     last_row = df.iloc[[-1]]
     task = "cls" if "logit" in kind else "reg"
 
-    try:
-        X, _, _, good = make_X_y(last_row, task)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Feature extraction failed: {e}")
+    # Extract features only — target (y_reg/y_cls) is NaN on the most recent row
+    # by design (no next-day return known yet), so we cannot use make_X_y here.
+    feat_cols = [c for c in df.columns if c not in ("date", "y_reg", "y_cls")]
+    X_raw = last_row[feat_cols].replace([np.inf, -np.inf], np.nan)
 
-    if len(X) == 0 or not good.any():
+    if X_raw.isna().any(axis=1).iloc[0]:
         raise HTTPException(status_code=422, detail="Latest row has missing features — cannot predict.")
+
+    X = X_raw.values.astype(float)
 
     date_val = str(last_row["date"].iloc[0])[:10]
 
