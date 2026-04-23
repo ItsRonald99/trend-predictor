@@ -6,7 +6,7 @@ from typing import Literal
 import joblib
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .io_paths import MODELS, DATA_PROCESSED
 from .modeling import load_dataset, make_X_y, wf_predict, run_strategy, perf_metrics
@@ -76,6 +76,11 @@ def _available_symbols() -> list[str]:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/docs")
+
 
 @app.get("/health", tags=["Meta"])
 def health():
